@@ -1,0 +1,16 @@
+# main dependencies
+numpy
+pandas
+h5py
+scipy
+scikit-learn
+matplotlib
+seaborn
+
+# dev tools we can add later
+# pytest
+# ruff
+
+# experimenting + deep learning
+# mlflow
+# torch
