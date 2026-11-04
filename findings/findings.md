@@ -30,7 +30,7 @@ The signal condition flags are heuristic indicators:
 * `is_constant` identifies signals with negligible variation (std < 1e-10).
 * `is_stuck` identifies signals with extremely low variation (std below 1st percentile) and an extremely high mean offset relative to the training distribution (mean above 99.9th percentile).
 
-## 3. Exploratory Findings (Boxplots)
+## 3. Exploratory Findings (Boxplots & Spectrograms)
 
 ### Time-domain features
 
@@ -44,7 +44,9 @@ Frequency domain features and frequency band powers were explored to capture dif
 
 Some frequency features showed noticeable differences between the validation classes, such as the frequency bands and spectral flatness, while others showed lots of overlap. How useful they are should be determined with model evaluation.
 
-**You can view all boxplots under findings/comparisons/**
+I also added spectrograms for one normal and one anomalous signal. To generate another random pair, uncomment and run the spectrogram code in src/eda.py. It will overwrite the existing plots.
+
+**You can view all plots under findings/comparisons/**
 
 ## 4. Feature correlation
 

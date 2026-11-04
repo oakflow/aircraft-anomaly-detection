@@ -1,6 +1,6 @@
 from data_loader import (load_hdf5, load_labels, train, valid, ground_truth)
 from scipy.stats import skew, kurtosis
-from scipy.signal import welch, correlate
+from scipy.signal import welch, correlate, spectrogram
 import scipy.integrate
 import numpy as np
 import pandas as pd
@@ -292,6 +292,7 @@ post_feature_extraction(training_features, validation_features)
 
 
 
+
 # ------------------ correlation matrix ------------------
 
 # correlation_matrix = training_features.drop(columns=['is_constant', 'is_stuck']).corr()
@@ -320,3 +321,80 @@ post_feature_extraction(training_features, validation_features)
 # )
 
 # plt.close()
+
+
+
+
+
+
+# ------------------ spectrogram ------------------
+# (1 random healthy, 1 random anomalous)
+
+# def plot_spectrogram(signal, title, ax, vmin, vmax):
+#     frequencies, times, Sxx = spectrogram(
+#         signal,
+#         fs=1024,
+#         nperseg=2048,
+#         noverlap=1024
+#     )
+
+#     # convert to dB
+#     Sxx_db = 10 * np.log10(Sxx + 1e-12)    
+#     vmin = 10 * np.log10(vmin + 1e-12)
+#     vmax = 10 * np.log10(vmax + 1e-12)
+
+#     mesh = ax.pcolormesh(
+#         times,
+#         frequencies,
+#         Sxx_db,
+#         shading="auto",
+#         cmap="viridis",
+#         vmin=vmin,
+#         vmax=vmax
+#     )
+
+#     ax.set_title(title)
+#     ax.set_xlabel("time (s)")
+#     ax.set_ylabel("frequency (Hz)")
+#     ax.set_ylim(0, 512)
+
+#     return mesh
+
+# normal_idx = np.random.choice(
+#     y_valid[y_valid['anomaly'] == 0].index
+#     )
+
+# anomaly_idx = np.random.choice( 
+#     y_valid[y_valid['anomaly'] == 1].index
+#     )
+
+# normal_signal = X_valid[normal_idx]
+# anomaly_signal = X_valid[anomaly_idx]
+
+# signals = [
+#     (normal_signal, "Normal Validation Signal", "normal_spectrogram.png"),
+#     (anomaly_signal, "Anomalous Validation Signal", "anomalous_spectrogram.png")
+# ]
+
+# # calculate both spectrograms to establish a shared colour range
+# _, _, normal_power = spectrogram(
+#     normal_signal, fs=1024, nperseg=2048, noverlap=1024
+# )
+
+# _, _, anomaly_power = spectrogram(
+#     anomaly_signal, fs=1024, nperseg=2048, noverlap=1024
+# )
+
+# vmin = min(normal_power.min(), anomaly_power.min())
+# vmax = max(normal_power.max(), anomaly_power.max())
+
+# for s in signals:
+#     signal, title, filename = s
+
+#     fig, ax = plt.subplots(figsize=(10, 4))
+#     mesh = plot_spectrogram(signal, title, ax, vmin, vmax)
+#     fig.colorbar(mesh, ax=ax, label="power (dB)")
+
+#     plt.tight_layout()
+#     plt.savefig(f'{root}/findings/comparisons/{filename}', dpi=300)
+#     plt.close()
