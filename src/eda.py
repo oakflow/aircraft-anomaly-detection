@@ -5,15 +5,25 @@ import scipy.integrate
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
 
 X_train = load_hdf5(train)
 X_valid = load_hdf5(valid)
 y_valid = load_labels(ground_truth)
 
 def extract_features(signal):
+    """
+    Extract time domain features,
+    then frequency domain features through extract_frequency_features(),
+    and return a dict of both feature sets for the given signal
+    """
 
     std = np.std(signal)
     is_constant = std < 1e-10
+
     centered_signal = signal - np.mean(signal)
 
     time_features = {
@@ -38,6 +48,9 @@ def extract_features(signal):
     }
 
 def extract_frequency_features(signal):
+    """
+    Extract frequency domain features from a signal
+    """
 
     hz = 1024
 
@@ -49,9 +62,16 @@ def extract_frequency_features(signal):
             'spectral_bandwidth': np.nan,
             'spectral_rolloff': np.nan,
             'spectral_flatness': np.nan,
-            'low_band_power': np.nan,
-            'mid_band_power': np.nan,
-            'high_band_power': np.nan,
+            'below_1hz_power': np.nan,
+            '1_2hz_power': np.nan,
+            '2_4hz_power': np.nan,
+            '4_8hz_power': np.nan,
+            '8_16hz_power': np.nan,
+            '16_32hz_power': np.nan,
+            '32_64hz_power': np.nan,
+            '64_128hz_power': np.nan,
+            '128_256hz_power': np.nan,
+            '256_512hz_power': np.nan,
             'autocorrelation_lag1': np.nan,
             'autocorrelation_lag10': np.nan
         }
@@ -104,20 +124,30 @@ def extract_frequency_features(signal):
     )
 
     # welch band powers
-    low_band_power = scipy.integrate.trapezoid(
-        psd[(frequencies_psd >= 0) & (frequencies_psd < 128)],
-        frequencies_psd[(frequencies_psd >= 0) & (frequencies_psd < 128)]
-    )
+    bands = [
+        (0, 1, 'below_1hz'),
+        (1, 2, '1_2hz'),
+        (2, 4, '2_4hz'),
+        (4, 8, '4_8hz'),
+        (8, 16, '8_16hz'),
+        (16, 32, '16_32hz'),
+        (32, 64, '32_64hz'),
+        (64, 128, '64_128hz'),
+        (128, 256, '128_256hz'),
+        (256, 512, '256_512hz')
+    ]
 
-    mid_band_power = scipy.integrate.trapezoid(
-        psd[(frequencies_psd >= 128) & (frequencies_psd < 256)],
-        frequencies_psd[(frequencies_psd >= 128) & (frequencies_psd < 256)]
-    )
+    band_features = {}
 
-    high_band_power = scipy.integrate.trapezoid(
-        psd[(frequencies_psd >= 256) & (frequencies_psd <= 512)],
-        frequencies_psd[(frequencies_psd >= 256) & (frequencies_psd <= 512)]
-    )
+    for low, high, name in bands:
+
+        mask = (frequencies_psd >= low) & (frequencies_psd < high)
+
+        band_power = scipy.integrate.trapezoid(
+            psd[mask], frequencies_psd[mask]
+        )
+
+        band_features[f'{name}_power'] = band_power
 
     # autocorrelation
     autocorrelation = correlate(
@@ -142,15 +172,18 @@ def extract_frequency_features(signal):
         'spectral_bandwidth': spectral_bandwidth,
         'spectral_rolloff': spectral_rolloff,
         'spectral_flatness': spectral_flatness,
-        'low_band_power': low_band_power,
-        'mid_band_power': mid_band_power,
-        'high_band_power': high_band_power,
+        **band_features,
         'autocorrelation_lag1': autocorrelation_lag1,
         'autocorrelation_lag10': autocorrelation_lag10
     }
 
 
 def post_feature_extraction(t_feature_set: pd.DataFrame, v_feature_set: pd.DataFrame):
+    """
+    Post-processing on the feature sets, 
+    needed for any features that rely on feature set stats,
+    only stuck sensor detection is implemented here, but more could be added
+    """
 
     std_threshold = t_feature_set["std"].quantile(0.01)
     mean_threshold = t_feature_set["mean"].abs().quantile(0.999)
@@ -158,11 +191,13 @@ def post_feature_extraction(t_feature_set: pd.DataFrame, v_feature_set: pd.DataF
     for fs in [t_feature_set, v_feature_set]:
         low_std = fs["std"] < std_threshold
         large_offset = fs["mean"].abs() > mean_threshold
-        is_constant = fs["is_constant"] == 1
+        is_constant = fs["is_constant"] == 1 
 
-        fs["is_stuck"] = (is_constant | (low_std & large_offset)).astype(int)
+        fs["is_stuck"] = (low_std & large_offset & ~is_constant).astype(int)
 
 
+
+# build the feature sets
 training_features = []
 for signal in X_train:
         training_features.append(extract_features(signal))
@@ -176,8 +211,112 @@ validation_features['anomaly'] = y_valid['anomaly'].astype(int)
 
 post_feature_extraction(training_features, validation_features)
 
+# preview
 # print(training_features.head())
 # print(validation_features.head())
 
+# quick sanity check
 # print("val:", validation_features.shape)
 # print("train:", training_features.shape)
+
+
+
+
+# save to csv
+# training_features.to_csv(
+#      root/'data'/'processed'/'training_features.csv',
+#      index=True,
+#      index_label='seq_id'
+# )
+
+# validation_features.to_csv(
+#      root/'data'/'processed'/'validation_features.csv',
+#      index=True,
+#      index_label='seq_id'
+# )
+
+
+
+
+
+
+
+
+# ------------------ boxplots ------------------
+
+# features = [
+#     'mean', 'std', 'min', 'max', 'rms',
+#     'skewness', 'kurtosis', 'peak_to_peak',
+#     'dominant_frequency', 'spectral_centroid',
+#     'spectral_entropy',
+#     'spectral_bandwidth', 'spectral_rolloff',
+#     'spectral_flatness', 'below_1hz_power',
+#     '1_2hz_power', '2_4hz_power', '4_8hz_power',
+#     '8_16hz_power', '16_32hz_power', '32_64hz_power',
+#     '64_128hz_power', '128_256hz_power', '256_512hz_power',
+#     'autocorrelation_lag1', 'autocorrelation_lag10',
+#     'mean_absolute_difference', 'zero_crossing_rate'
+# ]
+
+# for feature in features:
+#     validation_features.boxplot(column=feature, by='anomaly')
+
+#     if feature.endswith('_power'): plt.yscale('log')
+
+#     plt.title(f'{feature} by anomaly class')
+#     plt.suptitle('')
+#     plt.xlabel('Anomaly (0 = Normal, 1 = Anomalous)')
+#     plt.ylabel(feature)
+
+#     plt.tight_layout()
+#     plt.savefig(f'{root}/findings/comparisons/{feature}_boxplot.png', dpi=300, bbox_inches='tight')
+#     plt.close()
+
+
+# flag_counts = validation_features.groupby('anomaly')[
+#     ['is_constant', 'is_stuck']
+# ].sum()
+
+# flag_counts.plot(kind='bar', color=["#747474", "#000000"])
+
+# plt.title('Stuck Sensor Flags by Anomaly Class')
+# plt.xlabel('Anomaly (0 = Normal, 1 = Anomalous)')
+# plt.ylabel('Number of Signals Flagged')
+# plt.xticks(rotation=0)
+
+# plt.tight_layout()
+# plt.savefig(f'{root}/findings/comparisons/stuck_sensor_counts.png', dpi=300)
+# plt.close()
+
+
+
+
+
+# ------------------ correlation matrix ------------------
+
+# correlation_matrix = training_features.drop(columns=['is_constant', 'is_stuck']).corr()
+
+# plt.figure(figsize=(20, 16))
+
+# sns.heatmap(
+#     correlation_matrix,
+#     cmap='Greys',
+#     vmin=-1,
+#     vmax=1,
+#     center=0,
+#     annot=True,
+#     fmt='.2f',
+#     square=True,
+#     linewidths=0.3
+# )
+
+# plt.title('Feature Correlation Matrix (Training Dataset)')
+# plt.tight_layout()
+
+# plt.savefig(
+#     f'{root}/findings/correlations/correlation_matrix.png',
+#     dpi=300,
+#     bbox_inches='tight'
+# )
+
+# plt.close()
