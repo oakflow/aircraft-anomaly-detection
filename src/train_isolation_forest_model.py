@@ -101,3 +101,37 @@ for label in [0, 1]:
         X_valid.loc[rows].isna().sum().sum(),
         "missing values"
     )
+
+
+
+
+
+
+
+
+
+# Identify all affected recordings
+affected = X_valid[X_valid.isna().any(axis=1)].copy()
+
+print("Affected recordings:", len(affected))
+
+# Check the features that are NOT missing
+print("\nOther available features:")
+print(
+    affected[
+        ["mean", "std", "min", "max", "rms",
+         "is_constant", "is_stuck"]
+    ].head(30)
+)
+
+# Check the missingness pattern
+print("\nMissingness pattern:")
+print(affected.isna().sum(axis=1).value_counts())
+
+# Check whether the affected recordings have constant signals
+print("\nConstant signal flags:")
+print(valid_df.loc[affected.index, "is_constant"].value_counts())
+
+# Show the sequence IDs
+print("\nAffected sequence IDs:")
+print(valid_df.loc[affected.index, "seq_id"].tolist())
