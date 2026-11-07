@@ -32,3 +32,72 @@ print(y_valid.value_counts())
 # 6. Check training feature dimensions
 print("\nTraining shape:", X_train.shape)
 print("Validation shape:", X_valid.shape)
+
+
+
+
+
+
+
+
+# A. Investigate label mismatch
+
+valid_labels = (
+    valid_df.set_index("seq_id")["anomaly"]
+    .sort_index()
+    .astype(float)
+)
+
+ground_labels = (
+    labels_df.set_index("seqID")["anomaly"]
+    .sort_index()
+    .astype(float)
+)
+
+print("\n--- LABEL DIAGNOSTICS ---")
+print("Same sequence IDs:",
+      valid_labels.index.equals(ground_labels.index))
+
+print("Validation label dtype:", valid_labels.dtype)
+print("Ground truth dtype:", ground_labels.dtype)
+
+# Compare actual values, ignoring dtype differences
+mismatches = valid_labels[valid_labels != ground_labels]
+
+print("Actual label mismatches:", len(mismatches))
+print(mismatches.head(10))
+
+# B. Investigate missing feature values
+
+print("\n--- MISSING VALUE DIAGNOSTICS ---")
+
+missing_by_column = X_valid.isna().sum().sort_values(ascending=False)
+
+print("\nMissing values per feature:")
+print(missing_by_column[missing_by_column > 0])
+
+# Number of missing values in each recording
+missing_by_row = X_valid.isna().sum(axis=1)
+
+print("\nMissing values per recording:")
+print(missing_by_row.describe())
+
+# Show recordings with the most missing values
+problem_rows = missing_by_row[missing_by_row > 0].sort_values(
+    ascending=False
+)
+
+print("\nRecordings with missing values:")
+print(problem_rows.head(15))
+
+# C. Check whether missing values are associated with anomalies
+
+print("\nMissing values by actual class:")
+
+for label in [0, 1]:
+    rows = y_valid[y_valid == label].index
+    print(
+        f"Class {label}:",
+        X_valid.loc[rows].isna().sum().sum(),
+        "missing values"
+    )
