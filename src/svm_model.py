@@ -22,6 +22,10 @@ X_train = train_df.drop(columns = ["seq_id"])
 X_valid = valid_df.drop(columns = ["seq_id", "anomaly"])
 y_valid = valid_df["anomaly"].to_numpy()
 
+# Column positions of the two flags, used by the rule in predict_labels
+constant_column = list(X_valid.columns).index("is_constant")
+stuck_column = list(X_valid.columns).index("is_stuck") 
+
 # Fill missing values with the training medians
 # What: replaces each empty value with that feature's training median.
 # Why: 28 flat validation signals have empty features, and the model cannot use empty values.
@@ -40,7 +44,7 @@ X_tune, X_test, y_tune, y_test = train_test_split(
 
 # Build and train the model: scaling + One Class SVM
 # What: scales the features, then trains a One-Class SVM on normal recordings only.
-# Why: the rbf kernel uses distances, so features need the same scale (Tutorial 1).
+# Why: the rbf kernel uses distances, so features need the same scale (tutorial 1).
 # The training data has only normal recordings, so the model learns a boundary around them.
 # nu: max share of training recordings outside the boundary. gamma: how tight the boundary is.
 def training(X_train, nu, gamma):
@@ -50,11 +54,16 @@ def training(X_train, nu, gamma):
     model.fit(X_train)
     return model
 
-# Convert the predictions to the project labels
-# One-Class SVM gives 1 = normal, -1 = anomaly; this changes them to 0 = normal, 1 = anomaly.
+# Convert the predictions to the project labels, then apply the team rule
+# What: One Class SVM gives 1 = normal, -1 = anomaly; this changes them to 0 = normal, 1 = anomaly.
+# Then any recording with is_constant == 1 or is_stuck == 1 is set to anomaly.
+# Why: a healthy sensor is never constant or stuck in flight (rule agreed by the team).
 def predict_labels(model, X):
     raw_predictions = model.predict(X)
-    return (raw_predictions == -1).astype(int)
+    predictions = (raw_predictions == -1).astype(int)
+    flagged = (X[:, constant_column] == 1) | (X[:, stuck_column] == 1)
+    predictions[flagged] = 1
+    return predictions 
 
 # Try every combination of settings on the tune half
 # What: trains 12 models (3 nu x 4 gamma) and ranks them by F1 on the tune half.
@@ -83,10 +92,10 @@ test_pred = predict_labels(final_model, X_test)
 
 # Baseline: always predict "normal"
 # What: predicts 0 (normal) for every test recording.
-# Why: the report requires a majority-vote baseline; our model must beat it (Tutorial 1).
+# Why: the report requires a majority-vote baseline; our model must beat it (tutorial 1).
 baseline_pred = np.full_like(y_test, 0)
 
-# Print the results of the baseline and the One-Class SVM on the test half
+# Print the results of the baseline and the one class SVM on the test half
 # Anomaly (1) is the positive class. 
 print("\nFinal results on the test half (anomaly = positive class)")
 for name, pred in [("Baseline (always predicts normal)", baseline_pred), ("One-Class SVM", test_pred)]:
